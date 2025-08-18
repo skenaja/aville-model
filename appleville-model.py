@@ -435,7 +435,7 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
                     ap -= next_spec.cost
                     debug_print(f"[t={current_time/3600:.3f}h] Bought plot {plots_owned} for {next_spec.cost} AP (ap left {ap:.1f})")
                 plots_owned += 1
-                apply_booster_if_needed(plots_owned)
+                apply_booster_if_needed(plots_owned, prestige_level)
                 plant_all_free_plots()
                 last_progress_time = progress_print(current_time, coins, ap, lifetime_ap_gross, plots_owned, last_progress_time)
             # End function after attempting to buy one plot
@@ -449,7 +449,7 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
                         crop = next(c for c in CROPS if c.name == best_crop_dict["crop"])
                         plant_crop(pid, crop)
     # Apply boosters to a plot if a new plot is acquired or booster has expired
-    def apply_booster_if_needed(plot_id: int):
+    def apply_booster_if_needed(plot_id: int, prestige_level: int):
         nonlocal coins, ap, current_time
         booster = plots[plot_id]["booster"]
         booster_expiry = plots[plot_id]["booster_expiry"]
@@ -459,6 +459,9 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
             affordable_boosters = []
             for b in BOOSTERS:
                 if b.name == "(none)":
+                    continue
+                # Enforce minimum prestige level for boosters
+                if getattr(b, 'min_prestige_lvl', 0) > prestige_level:
                     continue
                 if b.currency == "coin":
                     # Check if enough coin remains after purchase for planting a coin crop
@@ -480,7 +483,10 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
 
     crop_roi, booster_roi = roi
     # Initial booster application for plot 1
-    apply_booster_if_needed(1)
+    prestige_level = 0
+    if isinstance(plotspecs[-1], dict):
+        prestige_level = plotspecs[-1].get('level', 0)
+    apply_booster_if_needed(1, prestige_level)
     plant_all_free_plots()
     last_progress_time = progress_print(current_time, coins, ap, lifetime_ap_gross, plots_owned, last_progress_time)
 
@@ -555,7 +561,10 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
                 harvest_plot(pid)
                 events_processed += 1
                 # After harvest, check if booster expired and reapply if needed
-                apply_booster_if_needed(pid)
+                prestige_level = 0
+                if isinstance(plotspecs[-1], dict):
+                    prestige_level = plotspecs[-1].get('level', 0)
+                apply_booster_if_needed(pid, prestige_level)
         # Record AP and time for charting
         ap_time_history.append((current_time, ap))
 
@@ -565,6 +574,9 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
         while plots_owned < MAX_PLOTS:
             next_spec = plotspecs[plots_owned]
             debug_print(f"[t={current_time/3600:.3f}h] Attempting to buy plot {plots_owned+1}: cost={next_spec.cost}, currency={next_spec.currency}")
+            prestige_level = 0
+            if isinstance(plotspecs[-1], dict):
+                prestige_level = plotspecs[-1].get('level', 0)
             if next_spec.currency == "coin":
                 cheapest_coin = min([c.cost for c in CROPS if c.currency == "coin"])
                 min_headroom = max(2, 2 * cheapest_coin, 0.5 * next_spec.cost)
@@ -572,7 +584,7 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
                     coins -= next_spec.cost
                     plots_owned += 1
                     debug_print(f"[t={current_time/3600:.3f}h] Bought plot {plots_owned} for {next_spec.cost} coins (coins left {coins:.1f})")
-                    apply_booster_if_needed(plots_owned)
+                    apply_booster_if_needed(plots_owned, prestige_level)
                     plant_all_free_plots()
                     last_progress_time = progress_print(current_time, coins, ap, lifetime_ap_gross, plots_owned, last_progress_time)
                     continue
@@ -583,7 +595,7 @@ def event_simulator(roi: pd.DataFrame, plotspecs: List[PlotSpec], starting_coins
                     ap -= next_spec.cost
                     plots_owned += 1
                     debug_print(f"[t={current_time/3600:.3f}h] Bought plot {plots_owned} for {next_spec.cost} AP (ap left {ap:.1f})")
-                    apply_booster_if_needed(plots_owned)
+                    apply_booster_if_needed(plots_owned, prestige_level)
                     plant_all_free_plots()
                     last_progress_time = progress_print(current_time, coins, ap, lifetime_ap_gross, plots_owned, last_progress_time)
                     continue
